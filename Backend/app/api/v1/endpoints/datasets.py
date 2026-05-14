@@ -1,13 +1,12 @@
-import shutil
-import tempfile
-from pathlib import Path
+from uuid import UUID
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Path, Query, UploadFile, status
 
-from app.schemas.dataset import GeneratedDataset
+from app.schemas.dataset import GeneratedDataset, SqlQueryRequest, SqlQueryResult
 from app.services.dataset_service import DatasetService
 
-router = APIRouter(prefix="/datasets", tags=["datasets"])
+
+router = APIRouter()
 
 
 ALLOWED_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
@@ -18,42 +17,62 @@ ALLOWED_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
     response_model=GeneratedDataset,
     status_code=status.HTTP_201_CREATED,
 )
-async def generate_dataset_from_db(
+async def create_dataset_from_db(
     file: UploadFile = File(...),
-    sample_limit: int = Query(default=5, ge=1, le=100),
 ) -> GeneratedDataset:
-    filename = file.filename or ""
-
-    extension = Path(filename).suffix.lower()
-
-    if extension not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Formato no soportado. Subí un archivo .db, .sqlite o .sqlite3.",
-        )
-
     service = DatasetService()
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=extension) as temp_file:
-        temp_path = Path(temp_file.name)
-
-        try:
-            shutil.copyfileobj(file.file, temp_file)
-        finally:
-            await file.close()
-
     try:
-        return service.generate_from_sqlite_file(
-            file_path=temp_path,
-            source_filename=filename,
-            sample_limit=sample_limit,
-        )
+        return service.create_dataset_from_uploaded_file(file)
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"No se pudo generar el dataset desde el archivo enviado: {exc}",
+            detail=f"No se pudo crear el dataset desde la BD cargada: {exc}",
         ) from exc
 
     finally:
-        temp_path.unlink(missing_ok=True)
+        await file.close()
+
+@router.post(
+    "/{dataset_id}/query",
+    response_model=SqlQueryResult,
+)
+async def execute_query_on_existing_dataset(
+    payload: SqlQueryRequest,
+    dataset_id: UUID = Path(...),
+) -> SqlQueryResult:
+    service = DatasetService()
+
+    try:
+        result = service.execute_readonly_query_by_dataset_id(
+            dataset_id=dataset_id,
+            query=payload.sql_query,
+            limit=payload.limit,
+        )
+
+        return SqlQueryResult(**result)
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"No se pudo ejecutar la consulta SQL: {exc}",
+        ) from exc
