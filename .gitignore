@@ -64,6 +64,7 @@ pgdata/
 postgres_data/
 mysql_data/
 redis_data/
+storage/
 
 # =============================================================================
 # Docker – ignore local overrides and volatile volumes

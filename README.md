@@ -1,6 +1,6 @@
 # Consultor de BD con Lenguaje Natural
 
-Backend en **FastAPI** que permite consultar una base de datos usando lenguaje natural, sin necesidad de saber SQL.
+Backend en **FastAPI** que permite subir archivos SQLite, inspeccionar su esquema, ejecutar consultas SQL de solo lectura y convertir preguntas en lenguaje natural a SQL usando **Mistral AI**.
 
 ---
 
@@ -10,9 +10,7 @@ Backend en **FastAPI** que permite consultar una base de datos usando lenguaje n
 |---|---|
 | Python | >= 3.11 |
 | FastAPI | >= 0.115 |
-| SQLAlchemy | >= 2.0 (async + asyncpg) |
-| PostgreSQL | 16 |
-| Alembic | >= 1.14 |
+| Uvicorn | (servidor ASGI con hot-reload) |
 | pytest | >= 8.3 |
 | Docker | Compose V2 |
 | Mistral AI | API (modelo mistral-large-latest) |
@@ -22,8 +20,8 @@ Backend en **FastAPI** que permite consultar una base de datos usando lenguaje n
 ## Requisitos previos
 
 - Python >= 3.11
-- PostgreSQL 16 (o Docker)
-- Docker + Docker Compose (opcional, para levantar todo sin instalar nada localmente)
+- pip (gestor de paquetes)
+- Docker + Docker Compose (opcional, para ejecución containerizada)
 
 ---
 
@@ -33,17 +31,17 @@ Backend en **FastAPI** que permite consultar una base de datos usando lenguaje n
 cp Backend/.env.example Backend/.env
 ```
 
-Las variables más importantes:
+Editar `Backend/.env` y completar al menos `MISTRAL_API_KEY`.
 
-| Variable | Descripción | Ejemplo |
-|---|---|---|
-| `DATABASE_URL` | Conexión a PostgreSQL | `postgresql+asyncpg://postgres:postgres@localhost:5432/backend` |
-| `SECRET_KEY` | Clave para firmar JWT | `changeme-secret-key` |
-| `MISTRAL_API_KEY` | API key de Mistral AI para NL-to-SQL | `tu-api-key-de-mistral` |
-| `MISTRAL_MODEL` | Modelo de Mistral a usar | `mistral-large-latest` |
-| `BACKEND_CORS_ORIGINS` | Orígenes permitidos por CORS | `http://localhost:8000,http://localhost:3000` |
-
-> **Atención**: si usás Docker Compose, la URL de postgres cambia a `postgresql+asyncpg://postgres:postgres@postgres:5432/backend` (el hostname es el nombre del servicio `postgres`, no `localhost`). El `.env.example` tiene ambas versiones comentadas.
+| Variable | Requerida | Default | Descripción |
+|---|---|---|---|
+| `MISTRAL_API_KEY` | Sí | — | API key de Mistral AI |
+| `MISTRAL_MODEL` | No | `mistral-large-latest` | Modelo de Mistral |
+| `APP_NAME` | No | `Backend API` | Nombre visible |
+| `APP_VERSION` | No | `0.1.0` | Versión |
+| `DEBUG` | No | `false` | Modo debug |
+| `API_V1_PREFIX` | No | `/api/v1` | Prefijo de rutas |
+| `BACKEND_CORS_ORIGINS` | No | `http://localhost:8000,http://localhost:3000` | Orígenes CORS |
 
 ---
 
@@ -58,6 +56,8 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
+El flag `-e` permite editar código sin reinstalar. `.[dev]` incluye pytest y httpx.
+
 ---
 
 ## Ejecución local
@@ -66,28 +66,24 @@ pip install -e ".[dev]"
 cd Backend
 source .venv/bin/activate
 
-# Aplicar migraciones
-alembic upgrade head
-
-# Iniciar servidor
 uvicorn app.main:app --reload
 ```
 
-El servidor se levanta en `http://localhost:8000`.
+`--reload` reinicia el servidor automáticamente al detectar cambios en el código.
+
+Servidor en `http://localhost:8000`.
 
 ---
 
-## Ejecución con Docker Compose
+## Ejecución con Docker
 
 ```bash
 cd Backend
 
-# Asegurate de tener DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/backend en .env
-
-# Construir y levantar
+# Construir imagen y levantar contenedor (modo interactivo)
 docker compose up --build
 
-# O en segundo plano
+# En segundo plano
 docker compose up -d --build
 
 # Ver logs
@@ -97,34 +93,7 @@ docker compose logs -f
 docker compose down
 ```
 
-Esto levanta dos servicios:
-- **backend** — FastAPI con uvicorn en `:8000`
-- **postgres** — PostgreSQL 16 en `:5433` del host (`:5432` interno)
-
----
-
-## Migraciones (Alembic)
-
-Los comandos se ejecutan localmente o dentro del contenedor:
-
-```bash
-cd Backend
-source .venv/bin/activate
-
-# Crear nueva migración automática
-alembic revision --autogenerate -m "descripcion del cambio"
-
-# Aplicar migraciones
-alembic upgrade head
-
-# Revertir la última
-alembic downgrade -1
-
-# Ver estado
-alembic current
-```
-
-> Dentro del contenedor Docker: `docker compose exec backend alembic upgrade head`
+Solo se levanta el servicio `backend` (FastAPI). No requiere base de datos externa.
 
 ---
 
@@ -133,7 +102,6 @@ alembic current
 ```bash
 cd Backend
 source .venv/bin/activate
-
 pytest -v
 ```
 
@@ -147,42 +115,55 @@ docker compose exec backend pytest -v
 
 ## Endpoints
 
-| URL | Descripción |
+| Método | URL | Descripción |
 |---|---|---|
-| `http://localhost:8000` | Raíz del API |
-| `http://localhost:8000/docs` | Swagger UI (documentación interactiva) |
-| `http://localhost:8000/redoc` | ReDoc |
-| `http://localhost:8000/api/v1/health` | Health check |
-| `http://localhost:8000/api/v1/users/` | Listar usuarios |
-| `http://localhost:8000/api/v1/users/{id}` | Obtener usuario por ID |
-| `POST http://localhost:8000/api/v1/users/` | Crear usuario |
-| `http://localhost:8000/api/v1/datasets/from-db` | Subir archivo de BD y crear dataset |
-| `http://localhost:8000/api/v1/datasets/{id}/query` | Ejecutar SQL sobre un dataset |
-| `http://localhost:8000/api/v1/datasets/{id}/nl-query` | Consulta en lenguaje natural sobre un dataset |
+| GET | `/` | Raíz del API |
+| GET | `/api/v1/health` | Health check |
+| POST | `/api/v1/datasets/from-db` | Subir archivo SQLite y crear dataset |
+| POST | `/api/v1/datasets/{id}/query` | Ejecutar SQL readonly sobre un dataset |
+| POST | `/api/v1/datasets/{id}/nl-query` | Lenguaje natural → SQL (con o sin ejecución) |
+
+Documentación interactiva:
+
+- `http://localhost:8000/docs` — Swagger UI
+- `http://localhost:8000/redoc` — ReDoc
+
+---
+
+## Flujo de uso
+
+1. **`POST /api/v1/datasets/from-db`** — subís un archivo `.db`, `.sqlite` o `.sqlite3`. Se guarda como dataset y responde con el esquema (tablas, columnas, filas de muestra).
+2. **`POST /api/v1/datasets/{id}/query`** — ejecutás SQL de solo lectura sobre el dataset. Incluye validación contra operaciones peligrosas (INSERT, DROP, etc.).
+3. **`POST /api/v1/datasets/{id}/nl-query`** — enviás una pregunta en lenguaje natural. Mistral genera la SQL, se valida contra el esquema real y opcionalmente se ejecuta (`execute: true/false`).
 
 ---
 
 ## Estructura del proyecto
 
 ```
-.
-├── Backend/                     # Código del backend
-│   ├── app/
-│   │   ├── core/               # Configuración, seguridad, excepciones
-│   │   ├── api/v1/             # Routers y endpoints
-│   │   ├── db/                 # Conexión a base de datos
-│   │   ├── models/             # Modelos SQLAlchemy
-│   │   ├── schemas/            # Schemas Pydantic
-│   │   ├── repositories/       # Acceso a datos
-│   │   ├── services/           # Lógica de negocio
-│   │   └── utils/              # Utilidades (paginación)
-│   ├── tests/                  # Tests con pytest
-│   ├── alembic/                # Migraciones de base de datos
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   └── pyproject.toml
-├── .gitignore
-└── README.md
+Backend/
+├── app/
+│   ├── main.py                 # FastAPI app, CORS, router raíz
+│   ├── core/
+│   │   └── config.py           # Settings desde .env (pydantic-settings)
+│   ├── api/v1/
+│   │   ├── router.py           # Router principal (mountea endpoints)
+│   │   └── endpoints/
+│   │       ├── health.py       # GET /health
+│   │       └── datasets.py     # POST /from-db, /{id}/query, /{id}/nl-query
+│   ├── schemas/
+│   │   └── dataset.py          # Pydantic: DatasetColumn, GeneratedDataset,
+│   │                            # SqlQueryRequest/Result, NaturalLanguageSqlRequest/Response
+│   ├── services/
+│   │   ├── dataset_service.py  # Subida, inspección, validación y consulta de SQLite
+│   │   └── nl_sql_service.py   # Generación de SQL vía Mistral AI
+│   └── storage/datasets/       # Archivos SQLite subidos por el usuario
+├── tests/
+│   ├── conftest.py             # Fixture TestClient
+│   └── test_health.py          # Test de health check
+├── Dockerfile                  # python:3.12-slim + uvicorn
+├── docker-compose.yml          # Servicio backend
+└── pyproject.toml              # Dependencias y config pytest
 ```
 
 ---
@@ -190,27 +171,25 @@ docker compose exec backend pytest -v
 ## Comandos útiles
 
 ```bash
-# ── Local ──────────────────────────────────────────
 cd Backend
 source .venv/bin/activate
-uvicorn app.main:app --reload          # Iniciar servidor
-pytest -v                              # Correr tests
-alembic upgrade head                   # Migrar base de datos
 
-# ── Docker ─────────────────────────────────────────
-docker compose up --build              # Construir y levantar
-docker compose up -d --build           # En segundo plano
-docker compose down                    # Detener servicios
-docker compose logs -f                 # Ver logs en vivo
-docker compose exec backend pytest -v  # Tests dentro del contenedor
-docker compose exec backend alembic upgrade head  # Migrar dentro del contenedor
+uvicorn app.main:app --reload     # Iniciar servidor local
+pytest -v                         # Correr tests
+
+docker compose up --build         # Construir y levantar
+docker compose up -d --build      # En segundo plano
+docker compose down               # Detener
+docker compose logs -f            # Logs en vivo
+docker compose exec backend pytest -v   # Tests en contenedor
 ```
 
 ---
 
 ## Notas para desarrollo
 
-- **No comittees** el archivo `.env` real. Usá `.env.example` como plantilla.
-- Las migraciones de Alembic **deben versionarse** (`alembic/versions/`).
-- Agregá tests para cada nueva feature.
-- Corré `pytest` antes de abrir un PR.
+- **No comittees** `.env`. Usá `.env.example` como plantilla.
+- Los datasets subidos se almacenan en `Backend/app/storage/datasets/` (ya ignorado por `.gitignore`).
+- `MISTRAL_API_KEY` es obligatoria para que funcione el endpoint NL-to-SQL.
+- Agregá tests para cada nuevo endpoint.
+- El proyecto no usa base de datos externa ni migraciones. La persistencia es sobre archivos SQLite subidos por el usuario.
