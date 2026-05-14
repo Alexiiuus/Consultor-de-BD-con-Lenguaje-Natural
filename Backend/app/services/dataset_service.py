@@ -210,11 +210,11 @@ class DatasetService:
 
         normalized_query = cleaned_query.rstrip(";").strip().lower()
 
-        allowed_starts = ("select", "with", "explain")
+        allowed_starts = ("select", "with")
 
         if not normalized_query.startswith(allowed_starts):
             raise ValueError(
-                "Solo se permiten consultas de lectura: SELECT, WITH o EXPLAIN."
+                "Solo se permiten consultas de lectura: SELECT o WITH."
             )
 
         forbidden_keywords = [
@@ -239,3 +239,39 @@ class DatasetService:
             raise ValueError(
                 "La query contiene operaciones no permitidas sobre la base de datos."
             )
+
+    def validate_sql_against_dataset(
+        self,
+        dataset_id: UUID,
+        query: str,
+    ) -> None:
+        file_path = self._get_dataset_file_path(dataset_id)
+
+        if file_path is None:
+            raise FileNotFoundError("No existe una BD cargada con ese dataset_id.")
+
+        readonly_uri = f"file:{file_path}?mode=ro"
+
+        connection = sqlite3.connect(
+            readonly_uri,
+            uri=True,
+        )
+
+        try:
+            cursor = connection.cursor()
+            cursor.execute("PRAGMA query_only = ON")
+
+            clean_query = query.strip().rstrip(";")
+
+            validation_query = f"""
+            SELECT *
+            FROM (
+                {clean_query}
+            )
+            LIMIT 0
+            """
+
+            cursor.execute(validation_query)
+
+        finally:
+            connection.close()

@@ -15,6 +15,7 @@ Backend en **FastAPI** que permite consultar una base de datos usando lenguaje n
 | Alembic | >= 1.14 |
 | pytest | >= 8.3 |
 | Docker | Compose V2 |
+| Mistral AI | API (modelo mistral-large-latest) |
 
 ---
 
@@ -37,7 +38,9 @@ Las variables más importantes:
 | Variable | Descripción | Ejemplo |
 |---|---|---|
 | `DATABASE_URL` | Conexión a PostgreSQL | `postgresql+asyncpg://postgres:postgres@localhost:5432/backend` |
-| `SECRET_KEY` | Clave para firmar JWT | `*****` |
+| `SECRET_KEY` | Clave para firmar JWT | `changeme-secret-key` |
+| `MISTRAL_API_KEY` | API key de Mistral AI para NL-to-SQL | `tu-api-key-de-mistral` |
+| `MISTRAL_MODEL` | Modelo de Mistral a usar | `mistral-large-latest` |
 | `BACKEND_CORS_ORIGINS` | Orígenes permitidos por CORS | `http://localhost:8000,http://localhost:3000` |
 
 > **Atención**: si usás Docker Compose, la URL de postgres cambia a `postgresql+asyncpg://postgres:postgres@postgres:5432/backend` (el hostname es el nombre del servicio `postgres`, no `localhost`). El `.env.example` tiene ambas versiones comentadas.
@@ -96,7 +99,7 @@ docker compose down
 
 Esto levanta dos servicios:
 - **backend** — FastAPI con uvicorn en `:8000`
-- **postgres** — PostgreSQL 16 en `:5432`
+- **postgres** — PostgreSQL 16 en `:5433` del host (`:5432` interno)
 
 ---
 
@@ -145,12 +148,17 @@ docker compose exec backend pytest -v
 ## Endpoints
 
 | URL | Descripción |
-|---|---|
+|---|---|---|
 | `http://localhost:8000` | Raíz del API |
 | `http://localhost:8000/docs` | Swagger UI (documentación interactiva) |
 | `http://localhost:8000/redoc` | ReDoc |
 | `http://localhost:8000/api/v1/health` | Health check |
-| `http://localhost:8000/api/v1/users/` | CRUD de usuarios |
+| `http://localhost:8000/api/v1/users/` | Listar usuarios |
+| `http://localhost:8000/api/v1/users/{id}` | Obtener usuario por ID |
+| `POST http://localhost:8000/api/v1/users/` | Crear usuario |
+| `http://localhost:8000/api/v1/datasets/from-db` | Subir archivo de BD y crear dataset |
+| `http://localhost:8000/api/v1/datasets/{id}/query` | Ejecutar SQL sobre un dataset |
+| `http://localhost:8000/api/v1/datasets/{id}/nl-query` | Consulta en lenguaje natural sobre un dataset |
 
 ---
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any
 from uuid import UUID
 
@@ -32,3 +32,17 @@ class SqlQueryResult(BaseModel):
     columns: list[str]
     rows: list[dict[str, Any]]
     row_count: int
+
+class NaturalLanguageSqlRequest(BaseModel):
+    question: str = Field(..., min_length=3)
+    limit: int = Field(default=100, ge=1, le=1000)
+    execute: bool = True
+
+
+class NaturalLanguageSqlResponse(BaseModel):
+    question: str
+    sql_query: str
+    executed: bool
+    columns: list[str] = []
+    rows: list[dict[str, Any]] = []
+    row_count: int = 0
