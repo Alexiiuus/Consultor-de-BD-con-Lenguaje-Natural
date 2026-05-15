@@ -4,6 +4,10 @@ import ResultsTable from './ResultsTable';
 import LoadingState from './LoadingState';
 import ErrorMessage from './ErrorMessage';
 
+function rowsDictToArray(rows: Record<string, any>[], columns: string[]): any[][] {
+  return rows.map(row => columns.map(col => row[col]));
+}
+
 export const SqlQueryPanel: React.FC<{ datasetId: string }> = ({ datasetId }) => {
   const [sql, setSql] = useState('');
   const [response, setResponse] = useState<any>(null);
@@ -19,8 +23,12 @@ export const SqlQueryPanel: React.FC<{ datasetId: string }> = ({ datasetId }) =>
     }
     setLoading(true); setError(null);
     try {
-      const res = await sqlQuery(datasetId, { sql });
-      setResponse(res);
+      const res = await sqlQuery(datasetId, { sql_query: sql });
+      setResponse({
+        columns: res.columns,
+        rows: rowsDictToArray(res.rows, res.columns),
+        row_count: res.row_count,
+      });
     } catch (err:any) {
       setError(err.message || 'Error ejecutando SQL');
       setResponse(null);

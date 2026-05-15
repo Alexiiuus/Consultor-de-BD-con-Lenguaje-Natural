@@ -14,7 +14,8 @@ export async function apiFetch<T>(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'API error');
+    const detail = Array.isArray(err.detail) ? err.detail.map((d: any) => d.msg).join('; ') : err.detail;
+    throw new Error(detail || 'API error');
   }
   return res.json();
 }

@@ -42,7 +42,8 @@ export interface NLQueryResponse {
 
 // Consulta SQL manual
 export interface SQLQueryRequest {
-  sql: string;
+  sql_query: string;
+  limit?: number;
 }
 
 export interface SQLQueryResult {
