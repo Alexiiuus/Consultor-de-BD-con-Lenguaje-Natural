@@ -29,7 +29,7 @@ export const ResultsTable: React.FC<{ result?: SQLQueryResult }> = ({ result }) 
           ))}
         </tbody>
       </table>
-      <div className="text-xs text-gray-600 mb-2 mt-0">{result.rows.length} filas mostradas{typeof result.rowcount === 'number' ? ` (total: ${result.rowcount})` : ''}</div>
+      <div className="text-xs text-gray-600 mb-2 mt-0">{result.rows.length} filas mostradas{typeof result.row_count === 'number' ? ` (total: ${result.row_count})` : ''}</div>
     </div>
   );
 };

@@ -1,6 +1,5 @@
 import React from 'react';
 import { useDatasetChat } from '../../hooks/useDatasetChat';
-import type { ChatMessage } from '../../types/chat';
 import ChatHistory from './ChatHistory';
 import ChatInput from './ChatInput';
 

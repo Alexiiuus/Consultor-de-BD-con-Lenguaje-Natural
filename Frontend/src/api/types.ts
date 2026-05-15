@@ -48,6 +48,6 @@ export interface SQLQueryRequest {
 export interface SQLQueryResult {
   columns: string[];
   rows: any[][];
-  rowcount?: number;
+  row_count?: number;
   error?: string;
 }
