@@ -1,48 +1,49 @@
-# SQLite NL-to-SQL Assistant – Frontend
+# Consultor de BD con Lenguaje Natural – Frontend
 
-Interfaz React para consultar bases SQLite mediante lenguaje natural, SQL y chat tipo asistente sobre un backend FastAPI.
+Interfaz React + Vite + TypeScript para consultar bases SQLite mediante lenguaje natural, SQL y chat tipo asistente sobre un backend FastAPI.
+
+Ver `../README.md` para instrucciones completas del proyecto.
+
+---
+
+## Requisitos
+
+- Node.js >= 18
+- npm
 
 ## Instalación
 
 ```bash
+cd Frontend
 npm install
 ```
 
 ## Configuración
 
-Crea un archivo `.env` basado en `.env.example` con la URL base de la API:
-
-```
-VITE_API_BASE_URL=http://localhost:8000
+```bash
+cp .env.example .env
 ```
 
-## Ejecución en desarrollo
+| Variable | Requerida | Default | Descripción |
+|---|---|---|---|
+| `VITE_API_BASE_URL` | No | `http://localhost:8000` | URL base del backend FastAPI |
+
+## Desarrollo
 
 ```bash
-npm run dev
+npm run dev        # Servidor de desarrollo en http://localhost:5173
+npm run build      # Compilar para producción
+npm run lint       # ESLint
+npm run preview    # Previsualizar build de producción
 ```
 
-El frontend estará disponible en http://localhost:5173
+## Estructura
 
-## Compilación
-
-```bash
-npm run build
 ```
-
-## Lint (opcional)
-
-```bash
-npm run lint
+src/
+├── api/            # Cliente HTTP y funciones API
+├── components/     # Componentes React (chat, consulta NL, SQL manual, etc.)
+├── hooks/          # Hooks personalizados (useDatasetChat)
+├── pages/          # Páginas (HomePage)
+└── types/          # Tipos internos (chat)
 ```
-
-## Conexión con el backend
-
-El backend FastAPI debe estar escuchando en el puerto especificado por `VITE_API_BASE_URL` (por defecto `http://localhost:8000`).
-Debes poder subir archivos SQLite, lanzar preguntas en lenguaje natural y ver resultados.
-
-## Chat NL-to-SQL conversacional
-
-La pestaña o panel "Chat" permite conversar con el dataset activo usando lenguaje natural. Cada pregunta envía una consulta NL-to-SQL y muestra la SQL generada y los resultados en una interfaz tipo asistente.
-- Permite limpiar el chat, copiar SQL y reintentar mensajes con error.
-- Si cambias de dataset, el chat se reinicia.
